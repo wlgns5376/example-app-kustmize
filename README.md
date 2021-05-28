@@ -1,4 +1,4 @@
-# kustmize
+# kustomize
 
 ## Structure
 ```
