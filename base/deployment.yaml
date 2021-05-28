@@ -1,0 +1,142 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: example-app-storage-pv-volume
+  labels:
+    type: local
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/mnt/example-app/storage"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: example-app-storage-pv-claim
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example-app
+  labels:
+    app: example-app
+spec:
+  selector:
+    matchLabels:
+      app: example-app
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: example-app
+    spec:
+      volumes:
+        - name: app
+          emptyDir: {}
+        - name: nginx-vhost
+          configMap:
+            name: example-app-nginx-config
+            items:
+              - key: "default.conf"
+                path: "default.conf"
+        - name: app-php-ini
+          configMap:
+            name: example-app-php-config
+            items:
+              - key: "app.ini"
+                path: "app.ini"
+        - name: share-file
+          persistentVolumeClaim:
+            claimName: example-app-storage-pv-claim
+      initContainers:
+        - name: migrate
+          image: ghcr.io/wlgns5376/example-app:dev
+          command: ["/bin/sh", "-c", "php artisan migrate --force"]
+          env:
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: example-app-secret
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: example-app-secret
+                  key: DB_PASSWORD
+          envFrom:
+            - configMapRef:
+                name: example-app-config
+      containers:
+        - name: app
+          image: ghcr.io/wlgns5376/example-app:4c27ecad
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: app
+              mountPath: /app
+            - name: app-php-ini
+              mountPath: /usr/local/etc/php/conf.d/app.ini
+            - name: share-file
+              mountPath: /app/storage
+          env:
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: example-app-secret
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: example-app-secret
+                  key: DB_PASSWORD
+          envFrom:
+            - configMapRef:
+                name: example-app-config
+          ports:
+            - name: phpfpm
+              containerPort: 9000
+              protocol: TCP
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - cp -rf /var/www/html/. /app && cd /app && chown -R www-data:www-data storage && sh deploy.sh
+        - name: nginx
+          image: nginx:1.19-alpine
+          ports:
+            - name: http
+              containerPort: 80
+          volumeMounts:
+            - name: nginx-vhost
+              mountPath: /etc/nginx/conf.d
+            - name: app
+              mountPath: /app
+            - name: share-file
+              mountPath: /app/storage
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: example-app
+spec:
+  selector:
+    app: example-app
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+    - name: phpfpm
+      port: 9000
+      protocol: TCP

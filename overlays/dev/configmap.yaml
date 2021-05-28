@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: example-app-config
+  annotations:
+    avp.kubernetes.io/path: "secret/data/example-app/env"
+data:
+  APP_DEBUG: "false"
+  APP_ENV: production
+  APP_NAME: "Example App"
+  APP_URL: https://example-app.<host>
+  APP_KEY: <app-key>
+  DB_CONNECTION: mysql
+  DB_HOST: example-app-db
+  DB_PORT: "3306"
+  DB_DATABASE: app
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: example-app-php-config
+data:
+  app.ini: |
+    [PHP]
+    post_max_size = 100M
+    upload_max_filesize = 100M
+    variables_order = EGPCS
+
+    # Extensions...
+    extension=swoole.so
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: example-app-nginx-config
+data:
+  default.conf: |
+    server {
+      listen       80;
+      listen  [::]:80;
+      server_name  _;
+      root   /app/public;
+      index index.php index.html index.htm;
+
+      location / {
+          try_files $uri $uri/ /index.php?$query_string;
+      }
+
+      location ~ \.php$ {
+          fastcgi_pass 127.0.0.1:9000;
+          fastcgi_index index.php;
+          fastcgi_buffers 16 16k;
+          fastcgi_buffer_size 32k;
+          fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+          #fixes timeouts
+          fastcgi_read_timeout 600;
+          include fastcgi_params;
+      }
+
+      location ~ /\.ht {
+          deny all;
+      }
+
+      access_log /dev/stdout;
+      error_log /dev/stderr;
+    }

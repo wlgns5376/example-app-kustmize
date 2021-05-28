@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: example-app-db-pv-volume
+  labels:
+    type: local
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/mnt/example-app/db"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: example-app-db-pv-claim
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example-app-db
+  labels:
+    app: example-app-db
+spec:
+  selector:
+    matchLabels:
+      app: example-app-db
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: example-app-db
+    spec:
+      containers:
+        - image: mariadb:10
+          name: mysql
+          env:
+            # Use secret in real usage
+            # - name: MYSQL_ALLOW_EMPTY_PASSWORD
+            #   value: 'yes'
+            - name: MYSQL_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: example-app-config
+                  key: DB_DATABASE
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: example-app-secret
+                  key: DB_USERNAME
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: example-app-secret
+                  key: DB_PASSWORD
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: example-app-secret
+                  key: DB_ROOT_PASSWORD
+          ports:
+            - containerPort: 3306
+              name: mysql
+          volumeMounts:
+            - name: mysql-persistent-storage
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: mysql-persistent-storage
+          persistentVolumeClaim:
+            claimName: example-app-db-pv-claim
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: example-app-db
+spec:
+  ports:
+  - port: 3306
+  selector:
+    app: example-app-db
+  clusterIP: None
