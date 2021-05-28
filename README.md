@@ -12,7 +12,6 @@
 └── overlays
     └── dev
         ├── configmap.yaml
-        ├── ingress.yaml
         ├── kustomization.yaml
         └── secret.yaml
 ```
