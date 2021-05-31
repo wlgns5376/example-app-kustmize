@@ -79,7 +79,7 @@ spec:
                 name: example-app-config
       containers:
         - name: app
-          image: ghcr.io/wlgns5376/example-app:4c27ecad
+          image: ghcr.io/wlgns5376/example-app:dev
           imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: app
@@ -112,7 +112,7 @@ spec:
                 command:
                   - /bin/sh
                   - -c
-                  - cp -rf /var/www/html/. /app && cd /app && chown -R www-data:www-data storage && sh deploy.sh
+                  - cp -rf /var/www/html/. /app && cd /app && sh deploy.sh && chown -R www-data:www-data storage 
         - name: nginx
           image: nginx:1.19-alpine
           ports:
