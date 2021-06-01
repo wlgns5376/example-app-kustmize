@@ -11,9 +11,7 @@
 │   └── secret.yaml
 └── overlays
     └── dev
-        ├── configmap.yaml
-        ├── kustomization.yaml
-        └── secret.yaml
+        └── kustomization.yaml
 ```
 ## build
 ```sh
